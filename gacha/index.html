@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>スロット型 お小遣いガチャ</title>
+    <style>
+        /* CSS */
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            padding: 50px;
+            background-color: #333; 
+            color: white;
+        }
+        .container {
+            background-color: #222;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #ffcc00; 
+            margin-bottom: 30px;
+        }
+        
+        /* スロットのコンテナ */
+        .slot-display {
+            display: flex;
+            justify-content: center;
+            margin: 30px 0;
+            perspective: 500px;
+        }
+        
+        /* 各桁の見た目 */
+        .digit {
+            width: 80px;
+            height: 120px;
+            margin: 0 10px;
+            overflow: hidden;
+            border: 5px solid #ffcc00;
+            border-radius: 10px;
+            background-color: #000;
+            box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.5);
+            font-size: 4em;
+            color: #00ff00; 
+            font-weight: bold;
+            position: relative;
+        }
+        
+        /* 回転する数字のリスト */
+        .numbers {
+            position: absolute;
+            top: 0;
+            width: 100%;
+        }
+        
+        /* 数字一つ分のコンテナ */
+        .numbers > div {
+            height: 120px; 
+            line-height: 120px;
+            text-align: center;
+        }
+
+        .gacha-button {
+            background-color: #ff5722; 
+            color: white;
+            padding: 15px 40px;
+            font-size: 1.4em;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-top: 30px;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+        .gacha-button:hover {
+            background-color: #e64a19; 
+            transform: scale(1.05);
+        }
+        .gacha-button:disabled {
+            background-color: #777;
+            cursor: not-allowed;
+        }
+        .result-text {
+            margin-top: 20px;
+            font-size: 1.2em;
+            color: #ddd;
+        }
+        .yen {
+            font-size: 0.5em;
+            color: #ffcc00;
+            font-weight: normal;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎰 スロットでお小遣いゲット！ 🎰</h1>
+        
+        <p>ボタンを押して、今日のお小遣い（10円～100円）を決めよう！</p>
+        
+        <div class="slot-display">
+            <div class="digit" id="digit3"><div class="numbers"></div></div>
+            <div class="digit" id="digit2"><div class="numbers"></div></div>
+            <div class="digit" id="digit1"><div class="numbers"></div></div>
+            <div class="digit" style="border:none; background:none; box-shadow:none; width:50px; font-size:1.5em; line-height:120px; color:#ffcc00;">
+                <span class="yen">円</span>
+            </div>
+        </div>
+        
+        <button class="gacha-button" id="gachaButton">START!</button>
+        
+        <p class="result-text" id="message">結果待ち...</p>
+    </div>
+
+    <script>
+        // JavaScript
+        const button = document.getElementById('gachaButton');
+        const message = document.getElementById('message');
+        
+        const ALL_DIGITS_POOL = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        // 1の位もアニメーションさせるため 0-9 を使用。100の位は 0 または 1。
+        const digits = [
+            // [0] 1の位 (常に 0 になる)
+            { element: document.querySelector('#digit1 .numbers'), finalValue: 0, pool: ALL_DIGITS_POOL, initialDigit: 0 }, 
+            // [1] 10の位
+            { element: document.querySelector('#digit2 .numbers'), finalValue: 0, pool: ALL_DIGITS_POOL, initialDigit: 1 }, 
+            // [2] 100の位
+            { element: document.querySelector('#digit3 .numbers'), finalValue: 0, pool: [0, 1], initialDigit: 0 } 
+        ];
+        const SPIN_DURATION = 3000; // 3000ms (3秒)
+        const REPEAT_COUNT = 5; // 数字ストリップの繰り返し回数
+        const DIGIT_DELAY_MS = 300; // 桁ごとの遅延 (300ms)
+
+        // 数字リストを生成するヘルパー関数
+        function createNumberStrip(pool) {
+            let html = '';
+            for (let j = 0; j < REPEAT_COUNT; j++) {
+                for (const num of pool) {
+                    html += `<div>${num}</div>`;
+                }
+            }
+            return html;
+        }
+
+        // 初期化: 各スロットに数字のストリップをセットし、初期位置 (例: "010") に位置合わせ
+        digits.forEach(d => {
+            d.element.innerHTML = createNumberStrip(d.pool);
+            
+            // 1つの数字の高さを取得
+            const digitHeight = d.element.querySelector('div').offsetHeight;
+            
+            // 初期表示位置を合わせる (例: 10の位は '1'、他は '0')
+            const initialIndexInPool = d.pool.indexOf(d.initialDigit);
+            
+            // 中央のブロックの 'initialDigit' に合わせる
+            const initialIndex = Math.floor(REPEAT_COUNT / 2) * d.pool.length + initialIndexInPool; 
+            
+            d.element.style.transform = `translateY(${-initialIndex * digitHeight}px)`;
+            d.element.style.transition = 'none'; // 初回表示時はアニメーションを無効化
+        });
+
+        // ボタンクリック時の処理
+        button.addEventListener('click', async () => {
+            // 回転中はボタンを無効化
+            button.disabled = true;
+            message.textContent = "回転中...";
+
+            // サーバーから結果を取得
+            const response = await fetch('/spin', { method: 'POST' });
+            const data = await response.json();
+            const resultAmount = data.amount; // 例: 80, 100
+
+            // 結果の金額を各桁に分解
+            // 80 -> "080", 100 -> "100"
+            const s = String(resultAmount).padStart(3, '0'); 
+            
+            // 1の位
+            digits[0].finalValue = parseInt(s[2]); 
+            // 10の位
+            digits[1].finalValue = parseInt(s[1]); 
+            // 100の位
+            digits[2].finalValue = parseInt(s[0]); 
+
+            // 回転開始
+            digits.forEach((d, index) => {
+                const digitHeight = d.element.querySelector('div').offsetHeight; 
+
+                // d.pool 内での最終値のインデックス
+                const finalValueInPoolIndex = d.pool.indexOf(d.finalValue);
+
+                // 最終位置の計算: 最後の繰り返しブロックに合わせる
+                const targetIndex = (d.pool.length * (REPEAT_COUNT - 1)) + finalValueInPoolIndex;
+                
+                // 最終的なY座標 (上に移動)
+                const finalPosition = -targetIndex * digitHeight; 
+                
+                // アニメーション設定
+                const transitionDelay = index * DIGIT_DELAY_MS; // 桁ごとに遅延
+                const transitionDuration = SPIN_DURATION / 1000; // 秒に変換
+                
+                // 減速アニメーションを設定
+                d.element.style.transition = `transform ${transitionDuration}s cubic-bezier(0.25, 0.46, 0.45, 0.94) ${transitionDelay / 1000}s`;
+                d.element.style.transform = `translateY(${finalPosition}px)`;
+            });
+
+            // アニメーション終了後に実行
+            // 全ての桁の回転が終了する時間を計算: SPIN_DURATION + 最後の桁の遅延 + 余裕
+            const totalDuration = SPIN_DURATION + (digits.length - 1) * DIGIT_DELAY_MS;
+            setTimeout(() => {
+                message.textContent = `結果: ${resultAmount}円 獲得！ 🎉`;
+                button.disabled = false;
+            }, totalDuration + 500); 
+        });
+
+    </script>
+</body>
+</html>
